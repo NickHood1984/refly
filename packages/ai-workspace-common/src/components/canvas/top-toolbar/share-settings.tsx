@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import getClient from '@refly-packages/ai-workspace-common/requests/proxiedRequest';
 import { CreateTemplateModal } from '@refly-packages/ai-workspace-common/components/canvas-template/create-template-modal';
 import { useListShares } from '@refly-packages/ai-workspace-common/queries';
+import { getShareLink } from '@refly-packages/ai-workspace-common/utils/share';
 
 type ShareAccess = 'off' | 'anyone';
 
@@ -87,19 +88,69 @@ const ShareSettings = React.memo(({ canvasId }: ShareSettingsProps) => {
   });
   const shareRecord = useMemo(() => data?.data?.[0], [data]);
   const shareLink = useMemo(
-    () => `${window.location.origin}/share/canvas/${shareRecord?.shareId}`,
+    () => getShareLink('canvas', shareRecord?.shareId ?? ''),
     [shareRecord],
   );
+
+  // Memoized function to re-share latest content before copying link
+  const reshareAndCopyLink = useCallback(async () => {
+    if (access === 'off') return;
+
+    try {
+      setUpdateLoading(true);
+
+      // Get the most recent share data before performing operations
+      const latestSharesData = await getClient().listShares({
+        query: { entityId: canvasId, entityType: 'canvas' },
+      });
+      const latestShareRecord = latestSharesData?.data?.data?.[0];
+
+      // Delete existing share if any
+      if (latestShareRecord?.shareId) {
+        await getClient().deleteShare({
+          body: { shareId: latestShareRecord.shareId },
+        });
+      }
+
+      // Create new share with latest content
+      const { data, error } = await getClient().createShare({
+        body: {
+          entityId: canvasId,
+          entityType: 'canvas',
+          allowDuplication: true,
+        },
+      });
+
+      if (data?.success && !error) {
+        await refetchShares();
+        // Get the updated share link
+        const updatedShareData = await getClient().listShares({
+          query: { entityId: canvasId, entityType: 'canvas' },
+        });
+
+        const updatedShareRecord = updatedShareData?.data?.data?.[0];
+        if (updatedShareRecord?.shareId) {
+          const newShareLink = getShareLink('canvas', updatedShareRecord.shareId);
+          navigator.clipboard.writeText(newShareLink);
+          message.success(t('shareContent.copyLinkSuccess'));
+        }
+      } else {
+        message.error(t('shareContent.copyLinkError') || 'Failed to generate new share link');
+      }
+    } catch (err) {
+      console.error('Error resharing canvas:', err);
+      message.error(t('shareContent.copyLinkError') || 'Failed to generate new share link');
+    } finally {
+      setUpdateLoading(false);
+    }
+  }, [canvasId, access, refetchShares, t]);
 
   const buttons = useMemo(
     () => [
       {
         label: 'copyLink',
         icon: <IconLink className="w-3.5 h-3.5 flex items-center justify-center" />,
-        onClick: (link: string) => {
-          navigator.clipboard.writeText(link);
-          message.success(t('shareContent.copyLinkSuccess'));
-        },
+        onClick: () => reshareAndCopyLink(),
         disabled: access === 'off',
       },
       // TODO: do not delete this
@@ -113,7 +164,7 @@ const ShareSettings = React.memo(({ canvasId }: ShareSettingsProps) => {
       //   disabled: false,
       // },
     ],
-    [access, t],
+    [access, reshareAndCopyLink, t],
   );
 
   useEffect(() => {
@@ -127,30 +178,55 @@ const ShareSettings = React.memo(({ canvasId }: ShareSettingsProps) => {
     async (value: ShareAccess) => {
       setUpdateLoading(true);
       let success: boolean;
-      if (value === 'off') {
-        const { data, error } = await getClient().deleteShare({
-          body: { shareId: shareRecord?.shareId },
-        });
-        success = data.success && !error;
-      } else {
-        const { data, error } = await getClient().createShare({
-          body: {
-            entityId: canvasId,
-            entityType: 'canvas',
-            allowDuplication: true,
-          },
-        });
-        success = data.success && !error;
-      }
-      setUpdateLoading(false);
 
-      if (success) {
-        message.success(t('shareContent.updateCanvasPermissionSuccess'));
-        setAccess(value);
-        refetchShares();
+      try {
+        // Get the most recent share data before performing operations
+        const latestSharesData = await getClient().listShares({
+          query: { entityId: canvasId, entityType: 'canvas' },
+        });
+        const latestShareRecord = latestSharesData?.data?.data?.[0];
+
+        if (value === 'off') {
+          if (latestShareRecord?.shareId) {
+            const { data, error } = await getClient().deleteShare({
+              body: { shareId: latestShareRecord.shareId },
+            });
+            success = data.success && !error;
+          } else {
+            // No share to delete
+            success = true;
+          }
+        } else {
+          const { data, error } = await getClient().createShare({
+            body: {
+              entityId: canvasId,
+              entityType: 'canvas',
+              allowDuplication: true,
+            },
+          });
+          success = data.success && !error;
+        }
+
+        if (success) {
+          message.success(t('shareContent.updateCanvasPermissionSuccess'));
+          setAccess(value);
+          await refetchShares();
+        } else {
+          message.error(
+            t('shareContent.updateCanvasPermissionError') || 'Failed to update sharing settings',
+          );
+        }
+      } catch (err) {
+        console.error('Error updating canvas permission:', err);
+        message.error(
+          t('shareContent.updateCanvasPermissionError') || 'Failed to update sharing settings',
+        );
+        success = false;
+      } finally {
+        setUpdateLoading(false);
       }
     },
-    [canvasId, access],
+    [canvasId, t, refetchShares],
   );
 
   const handleAccessChange = useCallback(
@@ -200,8 +276,9 @@ const ShareSettings = React.memo(({ canvasId }: ShareSettingsProps) => {
               type="primary"
               key={button.label}
               icon={button.icon}
-              disabled={button.disabled}
-              onClick={() => button.onClick(shareLink)}
+              disabled={button.disabled || updateLoading}
+              loading={button.label === 'copyLink' && updateLoading}
+              onClick={() => button.onClick()}
             >
               {t(`shareContent.${button.label}`)}
             </Button>

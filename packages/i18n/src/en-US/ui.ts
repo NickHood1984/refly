@@ -71,6 +71,8 @@ const translations = {
     dropImageHere: 'Drop image here',
     presetColors: 'Preset Colors',
     duplicate: 'Duplicate',
+    shareSuccess: 'Share link copied to clipboard!',
+    shareError: 'Share failed, please try again!',
   },
   verifyRules: {
     emailRequired: 'Email cannot be empty',
@@ -155,7 +157,11 @@ const translations = {
     },
   },
   landingPage: {
-    slogan: 'The AI Native Creation Engine',
+    title: 'The AI Native Creation Engine',
+    subTitle:
+      'Powered by multi-threaded dialogue, knowledge integration, context memory, and intelligent search, Refly is the best way to transform ideas into quality content.',
+    getStarted: 'Get Started',
+    login: 'Login',
     simplySlogan: 'Creation Engine',
     description:
       'Refly is the best way to transform ideas into quality content through multi-threaded dialogue, knowledge integration, context memory, and intelligent search.',
@@ -466,6 +472,8 @@ const translations = {
       docs: 'Docs',
       discord: 'Discord',
       priceTag: '-50%',
+      community: 'Community',
+      wechat: 'WeChat',
     },
     faq: {
       title: 'Frequently Asked Questions',
@@ -1210,6 +1218,11 @@ const translations = {
     downloadSuccess: 'Downloaded {{fileName}}',
     downloadError: 'Failed to download file',
     refreshing: 'Refreshing preview...',
+    sharing: 'Sharing code...',
+    shareLoading: 'Loading shared code...',
+    noCodeFound: 'No code content found to display',
+    shareSuccess: 'Share link copied to clipboard!',
+    shareError: 'Failed to share code!',
     errorCopySuccess: 'Error message copied to clipboard',
     errorCopyFailed: 'Failed to copy error message',
     tabs: {
@@ -1219,7 +1232,8 @@ const translations = {
     buttons: {
       refresh: 'Refresh',
       copy: 'Copy code',
-      download: 'Download as {{fileName}}',
+      download: 'Download {{fileName}}',
+      share: 'Share code artifact',
     },
     defaultTitle: 'Code Artifact',
   },
